@@ -1,2 +1,7 @@
 bandmate_engine
 bandmate_engine.exe
+# build outputs
+bandmate_engine
+bandmate_engine.exe
+*.o
+*.out
