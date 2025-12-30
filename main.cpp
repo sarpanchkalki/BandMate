@@ -1,22 +1,25 @@
 #include "core/engine/AudioEngine.h"
 #include "core/engine/DroneInstrument.h"
+#include "core/engine/WASAPIOutput.h"
+#include "core/engine/AudioConfig.h"
 
 int main() {
     Session session;
-    session.mode = Mode::FOLLOW;
-    session.tempo = 60.0f;
-    session.energy = 0.6f;
+    session.tempo = 60;
+    session.energy = 0.7f;
     session.key.rootFrequency = 261.63f;
-    session.key.scale = ScaleType::MAJOR;
 
     AudioEngine engine;
     engine.setSession(session);
-
     engine.addInstrument(std::make_unique<DroneInstrument>());
-
     engine.prepare();
-    engine.start();
 
-    engine.stop();
+    WASAPIOutput output;
+    output.init(SAMPLE_RATE, 256);
+
+    output.start([&](float* buffer, int frames) {
+        engine.render(buffer, frames);
+    });
+
     return 0;
 }
