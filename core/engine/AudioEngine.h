@@ -4,6 +4,9 @@
 #include "Session.h"
 #include "Dynamics.h"
 #include "Instrument.h"
+#include "MasterClock.h"
+#include "Metronome.h"
+#include "RhythmEngine.h"
 
 #include <memory>
 #include <vector>
@@ -21,6 +24,10 @@ public:
 private:
     Session session_;
     Dynamics dynamics_;
+    MasterClock clock_;
+Metronome metronome_;
+RhythmEngine rhythm_;
+
     std::vector<std::unique_ptr<Instrument>> instruments_;
 };
 

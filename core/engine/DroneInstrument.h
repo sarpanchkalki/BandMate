@@ -1,4 +1,3 @@
-
 #ifndef DRONE_INSTRUMENT_H
 #define DRONE_INSTRUMENT_H
 
@@ -23,6 +22,7 @@ private:
     float velocity_;
     bool active_;
     float phase_;
+float lfoPhase_;
 };
 
 #endif

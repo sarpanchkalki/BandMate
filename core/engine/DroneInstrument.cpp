@@ -7,7 +7,8 @@ DroneInstrument::DroneInstrument()
     : frequency_(0.0f),
       velocity_(0.0f),
       active_(false),
-      phase_(0.0f) {}
+      phase_(0.0f),
+      lfoPhase_(0.0f) {}
 
 void DroneInstrument::prepare(const Session&) {
     std::cout << "Drone prepared for session" << std::endl;
@@ -30,16 +31,32 @@ void DroneInstrument::noteOn(float frequency,
 void DroneInstrument::process(float* output, int frames) {
     if (!active_) return;
 
-    float phaseIncrement =
-        2.0f * static_cast<float>(M_PI) * frequency_ / SAMPLE_RATE;
+    float phaseInc = 2.0f * static_cast<float>(M_PI) * frequency_ / SAMPLE_RATE;
+    float lfoInc   = 2.0f * static_cast<float>(M_PI) * 0.1f / SAMPLE_RATE; // slow breathing
 
     for (int i = 0; i < frames; ++i) {
-        float sample = std::sin(phase_) * velocity_;
+        // harmonic content
+        float fundamental = std::sin(phase_);
+        float h2 = std::sin(phase_ * 2.0f) * 0.3f;
+        float h3 = std::sin(phase_ * 3.0f) * 0.15f;
+
+        // slow amplitude modulation (breathing)
+        float lfo = 0.85f + 0.15f * std::sin(lfoPhase_);
+
+float accent = 1.0f;
+
+
+        float sample = (fundamental + h2 + h3) * lfo * velocity_;
+
         output[i] += sample;
 
-        phase_ += phaseIncrement;
+        phase_ += phaseInc;
         if (phase_ >= 2.0f * static_cast<float>(M_PI))
             phase_ -= 2.0f * static_cast<float>(M_PI);
+
+        lfoPhase_ += lfoInc;
+        if (lfoPhase_ >= 2.0f * static_cast<float>(M_PI))
+            lfoPhase_ -= 2.0f * static_cast<float>(M_PI);
     }
 }
 

@@ -1,5 +1,6 @@
 #include "AudioEngine.h"
 #include <cstring>
+#include <iostream>
 
 AudioEngine::AudioEngine()
     : dynamics_(0.5f) {}
@@ -7,6 +8,10 @@ AudioEngine::AudioEngine()
 void AudioEngine::setSession(const Session& session) {
     session_ = session;
     dynamics_.setEnergy(session_.energy);
+
+    clock_.setSampleRate(48000);
+    clock_.setTempo(session_.tempo);
+    clock_.setTimeSignature(4, 4);
 }
 
 void AudioEngine::addInstrument(std::unique_ptr<Instrument> instrument) {
@@ -14,8 +19,9 @@ void AudioEngine::addInstrument(std::unique_ptr<Instrument> instrument) {
 }
 
 void AudioEngine::prepare() {
-    for (auto& i : instruments_)
+    for (auto& i : instruments_) {
         i->prepare(session_);
+    }
 
     instruments_[0]->noteOn(
         session_.key.rootFrequency,
@@ -23,24 +29,33 @@ void AudioEngine::prepare() {
         dynamics_.velocity()
     );
 }
-#include <iostream>
-#include <cstring>
 
 void AudioEngine::render(float* output, int frames) {
     std::memset(output, 0, frames * sizeof(float));
 
+    // advance master clock
+    clock_.advance(frames);
+    bool downbeat = clock_.isDownbeat();
+
+    // trigger metronome on beat
+if (clock_.isOnBeat(1.0)) {
+ metronome_.trigger(downbeat);
+    rhythm_.triggerBeat(downbeat);
+    }
+
+    // process instruments
     for (auto& i : instruments_) {
         i->process(output, frames);
+rhythm_.process(output, frames);
     }
 
-    // DEBUG: print first 5 samples ONCE
-    static bool printed = false;
-    if (!printed) {
-        printed = true;
-        std::cout << "DEBUG samples:" << std::endl;
-        for (int i = 0; i < 5; ++i) {
-            std::cout << output[i] << std::endl;
+ // subtle accent on downbeat (post-instrument)
+    if (downbeat) {
+        for (int i = 0; i < frames; ++i) {
+            output[i] *= 1.05f; // VERY subtle
         }
     }
-}
 
+    // add metronome click
+    metronome_.process(output, frames);
+}
