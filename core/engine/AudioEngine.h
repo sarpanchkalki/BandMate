@@ -7,6 +7,8 @@
 #include "MasterClock.h"
 #include "Metronome.h"
 #include "RhythmEngine.h"
+#include "HarmonyEngine.h"
+
 
 #include <memory>
 #include <vector>
@@ -27,6 +29,8 @@ private:
     MasterClock clock_;
 Metronome metronome_;
 RhythmEngine rhythm_;
+HarmonyEngine harmony_;
+
 
     std::vector<std::unique_ptr<Instrument>> instruments_;
 };

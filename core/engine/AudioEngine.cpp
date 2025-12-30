@@ -12,6 +12,8 @@ void AudioEngine::setSession(const Session& session) {
     clock_.setSampleRate(48000);
     clock_.setTempo(session_.tempo);
     clock_.setTimeSignature(4, 4);
+harmony_.setRootFrequency(session_.key.rootFrequency);
+
 }
 
 void AudioEngine::addInstrument(std::unique_ptr<Instrument> instrument) {
@@ -35,7 +37,23 @@ void AudioEngine::render(float* output, int frames) {
 
     // advance master clock
     clock_.advance(frames);
-    bool downbeat = clock_.isDownbeat();
+bool downbeat = clock_.isDownbeat();
+static int lastBar = -1;
+int currentBar = static_cast<int>(clock_.currentBar());
+
+if (currentBar != lastBar) {
+    harmony_.triggerBar();
+    lastBar = currentBar;
+
+// master gain + hard safety clamp
+for (int i = 0; i < frames; ++i) {
+    output[i] *= 0.6f;   // headroom
+    if (output[i] > 1.0f) output[i] = 1.0f;
+    if (output[i] < -1.0f) output[i] = -1.0f;
+}
+
+
+}
 
     // trigger metronome on beat
 if (clock_.isOnBeat(1.0)) {
@@ -43,10 +61,22 @@ if (clock_.isOnBeat(1.0)) {
     rhythm_.triggerBeat(downbeat);
     }
 
+bool lastBeatState_ = false;
+
+bool onBeat = clock_.isOnBeat(1.0);
+if (onBeat && !lastBeatState_) {
+    metronome_.trigger(downbeat);
+    rhythm_.triggerBeat(downbeat);
+}
+lastBeatState_ = onBeat;
+
     // process instruments
     for (auto& i : instruments_) {
         i->process(output, frames);
 rhythm_.process(output, frames);
+harmony_.process(output, frames);
+
+
     }
 
  // subtle accent on downbeat (post-instrument)

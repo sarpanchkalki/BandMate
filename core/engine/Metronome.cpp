@@ -1,5 +1,4 @@
 #include "Metronome.h"
-#include <cstdlib>
 
 Metronome::Metronome()
     : remainingSamples_(0), accentLevel_(0.15f) {}
@@ -10,8 +9,12 @@ void Metronome::trigger(bool strong) {
 }
 
 void Metronome::process(float* output, int frames) {
+    static unsigned int seed = 1;
+
     for (int i = 0; i < frames && remainingSamples_ > 0; ++i) {
-        float noise = ((std::rand() / (float)RAND_MAX) * 2.0f - 1.0f);
+        seed = seed * 1664525u + 1013904223u;
+        float noise = ((seed >> 16) & 0x7FFF) / 16384.0f - 1.0f;
+
         float env = remainingSamples_ / 120.0f;
         output[i] += noise * env * accentLevel_;
         remainingSamples_--;
