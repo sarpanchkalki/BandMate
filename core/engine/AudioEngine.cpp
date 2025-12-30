@@ -1,5 +1,6 @@
 #include "AudioEngine.h"
 #include "AudioConfig.h"
+#include "WavWriter.h"
 #include <iostream>
 #include <vector>
 
@@ -8,7 +9,6 @@ AudioEngine::AudioEngine()
 
 void AudioEngine::setSession(const Session& session) {
     session_ = session;
-    timeEngine_.setTempo(session_.tempo);
     dynamics_.setEnergy(session_.energy);
 }
 
@@ -28,31 +28,27 @@ void AudioEngine::process(float*, int) {}
 void AudioEngine::start() {
     std::cout << "Engine started" << std::endl;
 
-    const int frames = 256;
+    const int seconds = 3;
+    const int frames = SAMPLE_RATE * seconds;
+
     std::vector<float> buffer(frames, 0.0f);
 
-    // Start drone
     instruments_[0]->noteOn(
         session_.key.rootFrequency,
         NoteDuration::WHOLE,
         dynamics_.velocity()
     );
 
-    // Generate audio
     instruments_[0]->process(buffer.data(), frames);
 
-    // Print first few samples
-    std::cout << "First 10 audio samples:" << std::endl;
-    for (int i = 0; i < 10; ++i) {
-        std::cout << buffer[i] << std::endl;
-    }
+    WavWriter::writeMono16("tanpura.wav", buffer, SAMPLE_RATE);
+
+    std::cout << "WAV written: tanpura.wav" << std::endl;
 }
 
 void AudioEngine::stop() {
     for (auto& inst : instruments_) {
         inst->stop();
     }
-
     std::cout << "AudioEngine stopped" << std::endl;
 }
-
