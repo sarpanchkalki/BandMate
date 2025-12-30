@@ -1,5 +1,7 @@
 #include "AudioEngine.h"
+#include "AudioConfig.h"
 #include <iostream>
+#include <vector>
 
 AudioEngine::AudioEngine()
     : dynamics_(0.5f) {}
@@ -8,9 +10,6 @@ void AudioEngine::setSession(const Session& session) {
     session_ = session;
     timeEngine_.setTempo(session_.tempo);
     dynamics_.setEnergy(session_.energy);
-
-    rhythm_.setCycleLength(4);
-    rhythm_.setPattern({0, 2});
 }
 
 void AudioEngine::addInstrument(std::unique_ptr<Instrument> instrument) {
@@ -24,25 +23,28 @@ void AudioEngine::prepare() {
     }
 }
 
-void AudioEngine::process(float* output, int frames) {
-    float deltaSeconds = frames / 48000.0f;
-    timeEngine_.update(deltaSeconds);
-
-    for (auto& inst : instruments_) {
-        inst->process(output, frames);
-    }
-}
+void AudioEngine::process(float*, int) {}
 
 void AudioEngine::start() {
     std::cout << "Engine started" << std::endl;
 
-    // Start drone on Sa
-    if (!instruments_.empty()) {
-        instruments_[0]->noteOn(
-            session_.key.rootFrequency,
-            NoteDuration::WHOLE,
-            dynamics_.velocity()
-        );
+    const int frames = 256;
+    std::vector<float> buffer(frames, 0.0f);
+
+    // Start drone
+    instruments_[0]->noteOn(
+        session_.key.rootFrequency,
+        NoteDuration::WHOLE,
+        dynamics_.velocity()
+    );
+
+    // Generate audio
+    instruments_[0]->process(buffer.data(), frames);
+
+    // Print first few samples
+    std::cout << "First 10 audio samples:" << std::endl;
+    for (int i = 0; i < 10; ++i) {
+        std::cout << buffer[i] << std::endl;
     }
 }
 
@@ -53,3 +55,4 @@ void AudioEngine::stop() {
 
     std::cout << "AudioEngine stopped" << std::endl;
 }
+
