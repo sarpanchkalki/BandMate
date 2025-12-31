@@ -14,6 +14,7 @@ void AudioEngine::setSession(const Session& session) {
     clock_.setTimeSignature(4, 4);
 harmony_.setRootFrequency(session_.key.rootFrequency);
 energy_.setBaseEnergy(session_.energy);
+follow_.setScaleRoot(session_.key.rootFrequency);
 
 
 }
@@ -46,8 +47,11 @@ bool downbeat = clock_.isDownbeat();
 static int lastBar = -1;
 int currentBar = static_cast<int>(clock_.currentBar());
 
+
 if (currentBar != lastBar) {
-    harmony_.triggerBar();
+int degree = follow_.suggestedChordDegree();
+harmony_.setChordDegree(degree);
+
     lastBar = currentBar;
 
 // master gain + hard safety clamp
@@ -64,6 +68,21 @@ for (int i = 0; i < frames; ++i) {
     if (output[i] > 1.0f) output[i] = 1.0f;
     if (output[i] < -1.0f) output[i] = -1.0f;
 }
+// TEMP: simulate user melodic movement (Sa → Ma → Pa → Sa)
+static int phraseStep = 0;
+static int lastBar = -1;
+
+int bar = static_cast<int>(clock_.currentBar());
+if (bar != lastBar) {
+    phraseStep = (phraseStep + 1) % 4;
+    lastBar = bar;
+}
+
+float ratios[] = {1.0f, 1.33f, 1.5f, 1.0f};
+float fakePitch = session_.key.rootFrequency * ratios[phraseStep];
+
+follow_.updateInputPitch(fakePitch);
+
 
 
 }
