@@ -13,6 +13,8 @@ void AudioEngine::setSession(const Session& session) {
     clock_.setTempo(session_.tempo);
     clock_.setTimeSignature(4, 4);
 harmony_.setRootFrequency(session_.key.rootFrequency);
+energy_.setBaseEnergy(session_.energy);
+
 
 }
 
@@ -37,6 +39,9 @@ void AudioEngine::render(float* output, int frames) {
 
     // advance master clock
     clock_.advance(frames);
+energy_.advance(frames);
+float energy = energy_.value();
+
 bool downbeat = clock_.isDownbeat();
 static int lastBar = -1;
 int currentBar = static_cast<int>(clock_.currentBar());
@@ -48,6 +53,14 @@ if (currentBar != lastBar) {
 // master gain + hard safety clamp
 for (int i = 0; i < frames; ++i) {
     output[i] *= 0.6f;   // headroom
+    if (output[i] > 1.0f) output[i] = 1.0f;
+    if (output[i] < -1.0f) output[i] = -1.0f;
+}
+
+float masterGain = 0.4f + 0.4f * energy;
+
+for (int i = 0; i < frames; ++i) {
+    output[i] *= masterGain;
     if (output[i] > 1.0f) output[i] = 1.0f;
     if (output[i] < -1.0f) output[i] = -1.0f;
 }
