@@ -1,5 +1,6 @@
 #ifndef AUDIO_ENGINE_H
 #define AUDIO_ENGINE_H
+#include "LeadEngine.h"
 
 #include "Session.h"
 #include "Dynamics.h"
@@ -9,6 +10,8 @@
 #include "RhythmEngine.h"
 #include "HarmonyEngine.h"
 #include "EnergyEngine.h"
+#include "FollowEngine.h"
+#include "ParameterManager.h"
 
 
 #include <memory>
@@ -24,6 +27,10 @@ public:
     void prepare();
     void render(float* output, int frames);
 
+public:
+    void setParameters(const MusicalParameters& params);
+
+
 private:
     Session session_;
     Dynamics dynamics_;
@@ -32,6 +39,9 @@ Metronome metronome_;
 RhythmEngine rhythm_;
 HarmonyEngine harmony_;
 EnergyEngine energy_;
+FollowEngine follow_;
+ParameterManager params_;
+LeadEngine lead_;
 
 
     std::vector<std::unique_ptr<Instrument>> instruments_;

@@ -8,6 +8,8 @@ public:
     DroneInstrument();
 
     void prepare(const Session& session) override;
+void setFrequency(float freq);
+
 
     void noteOn(float frequency,
                 NoteDuration duration,

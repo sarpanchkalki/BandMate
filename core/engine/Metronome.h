@@ -8,6 +8,9 @@ public:
     void trigger(bool strong);
     void process(float* output, int frames);
 
+bool prepared_ = false;
+
+
 private:
     int remainingSamples_;
 float accentLevel_;

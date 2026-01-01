@@ -13,6 +13,10 @@ DroneInstrument::DroneInstrument()
 void DroneInstrument::prepare(const Session&) {
     std::cout << "Drone prepared for session" << std::endl;
 }
+void DroneInstrument::setFrequency(float freq) {
+    frequency_ = freq;
+}
+
 
 void DroneInstrument::noteOn(float frequency,
                              NoteDuration,

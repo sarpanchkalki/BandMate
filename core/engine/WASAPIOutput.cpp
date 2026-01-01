@@ -4,138 +4,109 @@
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 
-#include <iostream>
 #include <vector>
+#include <iostream>
+#include <cmath>
 #include <cstdint>
 #include <algorithm>
 
-#define SAFE_RELEASE(x) if(x){ x->Release(); x = nullptr; }
+#ifndef KSDATAFORMAT_SUBTYPE_IEEE_FLOAT
+#include <initguid.h>
+DEFINE_GUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
+0x00000003, 0x0000, 0x0010,
+0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
+#endif
 
-WASAPIOutput::WASAPIOutput()
-    : device_(nullptr),
-      audioClient_(nullptr),
-      renderClient_(nullptr),
-      bufferFrames_(0) {}
+
+WASAPIOutput::WASAPIOutput() = default;
 
 WASAPIOutput::~WASAPIOutput() {
-    stop();
-    SAFE_RELEASE(renderClient_);
-    SAFE_RELEASE(audioClient_);
-    SAFE_RELEASE(device_);
-    CoUninitialize();
+    if (mixFormat_) {
+        CoTaskMemFree(mixFormat_);
+        mixFormat_ = nullptr;
+    }
 }
 
-bool WASAPIOutput::init(int, int) {
-    HRESULT hr;
-    CoInitialize(nullptr);
 
-    IMMDeviceEnumerator* enumerator = nullptr;
+static const float kFloatMax = 1.0f;
+static const float kFloatMin = -1.0f;
+
+void WASAPIOutput::start(const std::function<void(float*, int)>& renderCallback) {
+    HRESULT hr;
+
+    hr = CoInitialize(nullptr);
+    if (FAILED(hr)) {
+        std::cerr << "CoInitialize failed\n";
+        return;
+    }
+
+    IMMDeviceEnumerator* deviceEnumerator = nullptr;
+    IMMDevice* device = nullptr;
 
     hr = CoCreateInstance(
         __uuidof(MMDeviceEnumerator),
         nullptr,
         CLSCTX_ALL,
         __uuidof(IMMDeviceEnumerator),
-        (void**)&enumerator
+        (void**)&deviceEnumerator
     );
-    if (FAILED(hr)) {
-        std::cout << "Failed to create device enumerator" << std::endl;
-        return false;
-    }
+    if (FAILED(hr)) return;
 
-    hr = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device_);
-    enumerator->Release();
-    if (FAILED(hr)) {
-        std::cout << "Failed to get default audio endpoint" << std::endl;
-        return false;
-    }
+    hr = deviceEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+    if (FAILED(hr)) return;
 
-    hr = device_->Activate(
+    hr = device->Activate(
         __uuidof(IAudioClient),
         CLSCTX_ALL,
         nullptr,
         (void**)&audioClient_
     );
-    if (FAILED(hr)) {
-        std::cout << "Failed to activate audio client" << std::endl;
-        return false;
-    }
+    if (FAILED(hr)) return;
 
-    // 🔴 THIS IS THE IMPORTANT PART — GET MIX FORMAT
-    WAVEFORMATEX* mixFormat = nullptr;
-    hr = audioClient_->GetMixFormat(&mixFormat);
-    if (FAILED(hr)) {
-        std::cout << "GetMixFormat failed" << std::endl;
-        return false;
-    }
+    hr = audioClient_->GetMixFormat(&mixFormat_);
+    if (FAILED(hr)) return;
 
-    // 🔎 PRINT MIX FORMAT (THIS IS WHAT WE NEED)
-std::cout << "==============================" << std::endl;
-std::cout << "WASAPI MIX FORMAT" << std::endl;
-std::cout << "Channels: " << mixFormat->nChannels << std::endl;
-std::cout << "Sample rate: " << mixFormat->nSamplesPerSec << std::endl;
-std::cout << "Bits per sample: " << mixFormat->wBitsPerSample << std::endl;
-std::cout << "Format tag: " << mixFormat->wFormatTag << std::endl;
-
-if (mixFormat->wFormatTag == 1)
-    std::cout << "Format: PCM" << std::endl;
-else if (mixFormat->wFormatTag == 3)
-    std::cout << "Format: FLOAT" << std::endl;
-else if (mixFormat->wFormatTag == 65534)
-    std::cout << "Format: EXTENSIBLE" << std::endl;
-else
-    std::cout << "Format: OTHER" << std::endl;
-
-std::cout << "==============================" << std::endl;
-
-    // ✅ Initialize WASAPI using THE MIX FORMAT
     hr = audioClient_->Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         0,
         10000000,   // 1 second buffer
         0,
-        mixFormat,
+        mixFormat_,
         nullptr
     );
-
-    CoTaskMemFree(mixFormat);
-
     if (FAILED(hr)) {
-        std::cout << "AudioClient Initialize failed" << std::endl;
-        return false;
+        std::cerr << "AudioClient Initialize failed\n";
+        return;
     }
 
-    hr = audioClient_->GetService(
-        __uuidof(IAudioRenderClient),
-        (void**)&renderClient_
-    );
-    if (FAILED(hr)) {
-        std::cout << "Failed to get render client" << std::endl;
-        return false;
-    }
+    hr = audioClient_->GetService(__uuidof(IAudioRenderClient),
+                                  (void**)&renderClient_);
+    if (FAILED(hr)) return;
 
-    hr = audioClient_->GetBufferSize((UINT32*)&bufferFrames_);
-    if (FAILED(hr)) {
-        std::cout << "Failed to get buffer size" << std::endl;
-        return false;
-    }
+    UINT32 bufferFrameCount;
+    audioClient_->GetBufferSize(&bufferFrameCount);
 
-    return true;
+    std::vector<float> engineBuffer(bufferFrameCount);
+
+    // Detect format
+bool isFloat = false;
+
+if (mixFormat_->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
+    isFloat = true;
+}
+else if (mixFormat_->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
+         mixFormat_->wBitsPerSample == 32) {
+    isFloat = true;
 }
 
-void WASAPIOutput::start(const std::function<void(float*, int)>& renderCallback) {
-    HRESULT hr;
-    audioClient_->Start();
 
-    const int channels = 2;
-    std::vector<float> engineBuffer(bufferFrames_);
+    audioClient_->Start();
 
     while (true) {
         UINT32 padding = 0;
-        hr = audioClient_->GetCurrentPadding(&padding);
-        if (FAILED(hr)) break;
+        audioClient_->GetCurrentPadding(&padding);
 
-        UINT32 framesAvailable = bufferFrames_ - padding;
+        UINT32 framesAvailable = bufferFrameCount - padding;
         if (framesAvailable == 0) {
             Sleep(1);
             continue;
@@ -145,15 +116,24 @@ void WASAPIOutput::start(const std::function<void(float*, int)>& renderCallback)
         hr = renderClient_->GetBuffer(framesAvailable, &data);
         if (FAILED(hr)) break;
 
-        // Generate mono audio
+        // Render mono float audio from engine
         renderCallback(engineBuffer.data(), framesAvailable);
 
-        // Interleave mono → stereo float
-        float* out = reinterpret_cast<float*>(data);
-        for (UINT32 i = 0; i < framesAvailable; ++i) {
-            float s = engineBuffer[i];
-            out[i * 2]     = s; // Left
-            out[i * 2 + 1] = s; // Right
+        if (isFloat) {
+            float* out = reinterpret_cast<float*>(data);
+            for (UINT32 i = 0; i < framesAvailable; ++i) {
+                float s = std::clamp(engineBuffer[i], kFloatMin, kFloatMax);
+                out[i * 2]     = s;
+                out[i * 2 + 1] = s;
+            }
+        } else {
+            int16_t* out = reinterpret_cast<int16_t*>(data);
+            for (UINT32 i = 0; i < framesAvailable; ++i) {
+                float s = std::clamp(engineBuffer[i], kFloatMin, kFloatMax);
+                int16_t v = static_cast<int16_t>(s * 32767.0f);
+                out[i * 2]     = v;
+                out[i * 2 + 1] = v;
+            }
         }
 
         renderClient_->ReleaseBuffer(framesAvailable, 0);
@@ -162,7 +142,8 @@ void WASAPIOutput::start(const std::function<void(float*, int)>& renderCallback)
     audioClient_->Stop();
 }
 
-
 void WASAPIOutput::stop() {
-    if (audioClient_) audioClient_->Stop();
+    if (audioClient_) {
+        audioClient_->Stop();
+    }
 }

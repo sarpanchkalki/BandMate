@@ -21,6 +21,8 @@ private:
     IAudioRenderClient* renderClient_;
     HANDLE event_;
     int bufferFrames_;
+WAVEFORMATEX* mixFormat_ = nullptr;
+
 };
 
 #endif

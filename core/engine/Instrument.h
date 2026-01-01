@@ -20,6 +20,9 @@ public:
     // Called every audio block (later)
     virtual void process(float* output, int frames) = 0;
 
+virtual void setFrequency(float) {}
+
+
     // Stop instrument
     virtual void stop() = 0;
 };

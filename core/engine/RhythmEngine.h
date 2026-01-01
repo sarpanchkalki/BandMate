@@ -20,6 +20,8 @@ void setTempo(float bpm);
 
     // Check if a beat triggers an event
     bool isBeatActive(int beat) const;
+bool prepared_ = false;
+
 
 private:
  int remainingSamples_;
